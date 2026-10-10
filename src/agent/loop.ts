@@ -1580,17 +1580,20 @@ export async function* runAgentLoop(options: AgentRunOptions): AsyncGenerator<SS
       const widgetCall = lastStep?.toolCalls.find((tc) => tc.toolName === "get_widget_data");
       if (!widgetCall) {
         // Some models answer a first-turn tool request with only a
-        // <suggestions> block and stop. Retry that step once (loopIdx 0 only,
-        // so a second suggestions-only reply passes through as before).
+        // <suggestions> block and stop; after a client tool result, some stop
+        // with no text at all (the call was only in the reasoning). Retry
+        // either step once (loopIdx 0 only, so a second such reply passes
+        // through as before).
         const stepText = steps.map((step) => step.text).join("");
         if (
           loopIdx === 0 &&
-          !isRebootToolTurn &&
           completedToolNames.length === 0 &&
-          /<suggestions\b/i.test(stepText) &&
-          parseSuggestions(stepText).cleanText.trim() === ""
+          (stepText.trim() === "" ||
+            (!isRebootToolTurn &&
+              /<suggestions\b/i.test(stepText) &&
+              parseSuggestions(stepText).cleanText.trim() === ""))
         ) {
-          logger.warn("Model returned only a suggestions block before any tool call; retrying the step once", {
+          logger.warn("Model returned no answer text and no tool call; retrying the step once", {
             loopIdx,
             conversationId,
           });
